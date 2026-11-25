@@ -1,11 +1,12 @@
 'use strict';
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const lobby=require('./lobby-server');
 const rooms=new Map(), token=()=>crypto.randomBytes(18).toString('hex');
 const MAX=48*1024*1024, TTL=6*60*60*1000;
 function reply(res,status,body,type='text/plain; charset=utf-8'){res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(body)}
 const json=(res,data)=>reply(res,200,JSON.stringify(data),'application/json');
-const publicFiles={'/':'index.html','/index.html':'index.html','/style.css':'style.css','/game.js':'game.js','/assets/main-menu.webp':'assets/main-menu.webp','/assets/tavern.webp':'assets/tavern.webp'};
-const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.webp':'image/webp'};
+const publicFiles={'/online':'online.html','/online.js':'online.js','/online-entry.js':'online-entry.js','/':'index.html','/index.html':'index.html','/style.css':'style.css','/game.js':'game.js','/worldmap.js':'worldmap.js','/worldmap.css':'worldmap.css','/assets/main-menu.webp':'assets/main-menu.webp','/assets/tavern.webp':'assets/tavern.webp'};
+const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.webp':'image/webp','.png':'image/png'};
 function file(res,name){reply(res,200,fs.readFileSync(path.join(__dirname,'public',name)),mime[path.extname(name)]||'application/octet-stream')}
 
 async function body(req){let chunks=[],n=0;for await(const c of req){n+=c.length;if(n>MAX){let e=Error('Audiodatei zu groß (max. ca. 35 MB)');e.status=413;throw e}chunks.push(c)}return JSON.parse(Buffer.concat(chunks).toString('utf8'))}
@@ -13,6 +14,8 @@ function expired(r){return Date.now()-r.touched>TTL}
 setInterval(()=>{for(const [k,r] of rooms)if(expired(r))rooms.delete(k)},60000).unref();
 http.createServer(async(req,res)=>{try{
  const u=new URL(req.url,'http://localhost'),p=u.pathname;
+ if(await lobby.handle(req,res,p))return;
+ if(req.method==='GET'&&/^\/assets\/world\/[a-z0-9_]+\.png$/.test(p)){if(!fs.existsSync(path.join(__dirname,'public',p)))return reply(res,404,'Nicht gefunden');return file(res,p.slice(1));}
  if(req.method==='GET'&&p==='/health')return json(res,{ok:true});
  if(req.method==='GET'&&Object.hasOwn(publicFiles,p))return file(res,publicFiles[p]);
  if(req.method==='GET'&&/^\/listen\/[a-f0-9]{36}$/.test(p))return file(res,'listener.html');
