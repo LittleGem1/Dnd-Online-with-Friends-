@@ -1,0 +1,11 @@
+{
+  "name": "dnd-game-creator-online",
+  "version": "0.9.1",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}
